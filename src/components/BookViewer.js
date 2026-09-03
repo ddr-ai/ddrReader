@@ -19,6 +19,7 @@ export class BookViewer {
     this.isTtsPlaying = false;
     this.speechUtterance = null;
     this.keyHandler = null;
+    this.resizeObserver = null;
     this.resizeTimeout = null;
     this.containerRef = null;
   }
@@ -99,13 +100,7 @@ export class BookViewer {
           </button>
 
           <div class="virtual-book-wrapper" id="flipbook-container">
-            <div id="flipbook" class="flipbook">
-              ${book.pages.map((p, idx) => `
-                <div class="st-page ${p.type === 'cover' || p.type === 'back-cover' ? '--hard' : ''}" data-density="${p.type === 'cover' || p.type === 'back-cover' ? 'hard' : 'soft'}">
-                  ${p.html}
-                </div>
-              `).join('')}
-            </div>
+            <!-- StPageFlip mounts here -->
           </div>
 
           <button class="flip-nav-btn flip-next-btn" id="flip-next" title="Next Page (→ / Space)">
@@ -189,49 +184,83 @@ export class BookViewer {
       </div>
     `;
 
-    this.initFlipBook(container, startPage);
+    // Initialize Flipbook with initial sizing
+    setTimeout(() => {
+      this.initFlipBook(container, startPage);
+    }, 50);
+
     this.bindEvents(container);
   }
 
   initFlipBook(container, initialPage) {
-    const flipElement = container.querySelector('#flipbook');
-    if (!flipElement) return;
+    if (!this.currentBook) return;
 
+    const flipContainer = container.querySelector('#flipbook-container');
+    if (!flipContainer) return;
+
+    // Destroy previous PageFlip if exists
+    if (this.pageFlip) {
+      try {
+        this.pageFlip.destroy();
+      } catch (e) {}
+      this.pageFlip = null;
+    }
+
+    // Reconstruct inner HTML for fresh PageFlip initialization
+    flipContainer.innerHTML = `
+      <div id="flipbook" class="flipbook">
+        ${this.currentBook.pages.map((p) => `
+          <div class="st-page ${p.type === 'cover' || p.type === 'back-cover' ? '--hard' : ''}" data-density="${p.type === 'cover' || p.type === 'back-cover' ? 'hard' : 'soft'}">
+            ${p.html}
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    const flipElement = flipContainer.querySelector('#flipbook');
     const stage = container.querySelector('#book-stage');
-    const stageWidth = stage.clientWidth || window.innerWidth;
-    const stageHeight = stage.clientHeight || (window.innerHeight - 120);
+    if (!stage || !flipElement) return;
 
-    const isMobile = stageWidth < 768;
+    const rect = stage.getBoundingClientRect();
+    const stageWidth = rect.width > 0 ? rect.width : window.innerWidth;
+    const stageHeight = rect.height > 0 ? rect.height : (window.innerHeight - 110);
+
+    const isPortrait = stageWidth < 800 || (stageWidth / stageHeight < 1.22);
 
     let pageWidth = 0;
     let pageHeight = 0;
 
-    if (isMobile) {
-      // Single-page mobile layout
-      pageWidth = Math.min(stageWidth - 24, 460);
-      pageHeight = Math.min(stageHeight - 16, 680);
+    if (isPortrait) {
+      // Single-page responsive view (mobile/portrait tablet)
+      pageWidth = Math.min(stageWidth - 24, 520);
+      pageHeight = Math.min(stageHeight - 20, Math.floor(pageWidth * 1.42));
+      if (pageHeight > stageHeight - 20) {
+        pageHeight = stageHeight - 20;
+        pageWidth = Math.floor(pageHeight / 1.42);
+      }
     } else {
-      // Dual-page desktop spread layout
-      pageWidth = Math.min(480, Math.floor((stageWidth - 60) / 2));
-      pageHeight = Math.min(680, stageHeight - 30);
+      // Dual-page responsive spread (desktop/laptop/landscape tablet)
+      const maxSpreadWidth = stageWidth - 50;
+      pageWidth = Math.min(480, Math.floor(maxSpreadWidth / 2));
+      pageHeight = Math.min(stageHeight - 30, Math.floor(pageWidth * 1.42));
+      if (pageHeight > stageHeight - 30) {
+        pageHeight = stageHeight - 30;
+        pageWidth = Math.floor(pageHeight / 1.42);
+      }
     }
 
     try {
-      if (this.pageFlip) {
-        try { this.pageFlip.destroy(); } catch (e) {}
-      }
-
       this.pageFlip = new PageFlip(flipElement, {
-        width: Math.max(300, pageWidth),
-        height: Math.max(420, pageHeight),
+        width: Math.max(260, Math.floor(pageWidth)),
+        height: Math.max(380, Math.floor(pageHeight)),
         size: 'fixed',
-        minWidth: 280,
+        minWidth: 240,
         maxWidth: 560,
-        minHeight: 400,
-        maxHeight: 760,
+        minHeight: 360,
+        maxHeight: 780,
         maxShadowOpacity: 0.5,
         showCover: true,
-        usePortrait: isMobile,
+        usePortrait: isPortrait,
         mobileScrollSupport: false,
         useMouseEvents: true,
         flippingTime: 650,
@@ -251,7 +280,7 @@ export class BookViewer {
           } catch (e) {
             this.pageFlip.turnToPage(initialPage);
           }
-        }, 150);
+        }, 120);
       }
 
       highlightCodeInElement(flipElement);
@@ -388,20 +417,23 @@ export class BookViewer {
     };
     window.addEventListener('keydown', this.keyHandler);
 
-    // Responsive Window Resize with Debounce
-    if (this.resizeHandler) {
-      window.removeEventListener('resize', this.resizeHandler);
+    // ResizeObserver on the Stage
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
     }
-    this.resizeHandler = () => {
-      if (this.resizeTimeout) clearTimeout(this.resizeTimeout);
-      this.resizeTimeout = setTimeout(() => {
-        if (this.containerRef && this.currentBook) {
-          const currentPage = this.currentPage;
-          this.initFlipBook(this.containerRef, currentPage);
-        }
-      }, 300);
-    };
-    window.addEventListener('resize', this.resizeHandler);
+
+    const stage = container.querySelector('#book-stage');
+    if (stage && window.ResizeObserver) {
+      this.resizeObserver = new ResizeObserver(() => {
+        if (this.resizeTimeout) clearTimeout(this.resizeTimeout);
+        this.resizeTimeout = setTimeout(() => {
+          if (this.containerRef && this.currentBook) {
+            this.initFlipBook(this.containerRef, this.currentPage);
+          }
+        }, 250);
+      });
+      this.resizeObserver.observe(stage);
+    }
   }
 
   detachKeyboardEvents() {
@@ -593,9 +625,9 @@ export class BookViewer {
   destroy() {
     this.stopTts();
     this.detachKeyboardEvents();
-    if (this.resizeHandler) {
-      window.removeEventListener('resize', this.resizeHandler);
-      this.resizeHandler = null;
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
     }
     if (this.pageFlip) {
       try {

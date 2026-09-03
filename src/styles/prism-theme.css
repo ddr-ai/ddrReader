@@ -3,22 +3,24 @@
  */
 
 .code-block-wrapper {
-  margin: 1.25rem 0;
-  border-radius: 8px;
+  margin: 0.85rem 0;
+  border-radius: 6px;
   overflow: hidden;
   background-color: #1e1e2e;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .code-block-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: 4px 10px;
   background-color: #181825;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: #a6adc8;
   user-select: none;
 }
@@ -34,8 +36,8 @@
 .code-copy-btn {
   background: transparent;
   color: #a6adc8;
-  font-size: 0.75rem;
-  padding: 3px 8px;
+  font-size: 0.72rem;
+  padding: 2px 6px;
   border-radius: 4px;
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -51,30 +53,34 @@ code[class*="language-"],
 .book-page-body pre {
   color: #cdd6f4;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
-  line-height: 1.5;
+  font-size: 0.78rem;
+  line-height: 1.45;
   direction: ltr;
   text-align: left;
-  white-space: pre-wrap;
+  white-space: pre-wrap !important;
   word-spacing: normal;
-  word-break: break-word;
+  word-break: break-word !important;
   tab-size: 2;
   hyphens: none;
   background: #1e1e2e !important;
   margin: 0 !important;
-  padding: 12px 14px !important;
+  padding: 8px 10px !important;
   border-radius: 0;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  box-sizing: border-box !important;
 }
 
 /* Inline Code */
 :not(pre) > code {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   background-color: rgba(137, 180, 250, 0.15);
   color: #c47c07;
   border: 1px solid rgba(137, 180, 250, 0.2);
+  word-break: break-word;
 }
 
 .theme-dark :not(pre) > code,
