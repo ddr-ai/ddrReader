@@ -1,7 +1,8 @@
 /**
- * ddrReader - Storage Service
- * Manages persistent virtual books, bookmarks, reading progress, and settings.
+ * ddrReader - Storage Service with Automatic Database Sync Integration
  */
+
+import { syncService } from './syncService.js';
 
 const STORAGE_KEYS = {
   BOOKS: 'ddr_reader_books',
@@ -15,8 +16,8 @@ const DEFAULT_SETTINGS = {
   fontSize: 16, // px
   lineHeight: 1.6,
   soundEnabled: true,
-  pageViewMode: 'auto', // 'auto' | 'double' | 'single'
-  readingSpeed: 1.0 // for TTS
+  pageViewMode: 'auto',
+  readingSpeed: 1.0
 };
 
 export const storage = {
@@ -38,12 +39,14 @@ export const storage = {
     return books.find(b => b.id === id) || null;
   },
 
-  saveBook(book) {
+  saveBook(book, triggerSync = true) {
     try {
       const books = this.getBooks();
       const now = Date.now();
       
       const existingIndex = books.findIndex(b => b.id === book.id);
+      let savedBookId = book.id;
+
       if (existingIndex >= 0) {
         books[existingIndex] = {
           ...books[existingIndex],
@@ -61,10 +64,16 @@ export const storage = {
           customBookmarks: book.customBookmarks || []
         };
         books.unshift(newBook);
+        savedBookId = newBook.id;
       }
       
       localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(books));
-      return book.id || books[0].id;
+      
+      if (triggerSync) {
+        syncService.queueSync(books);
+      }
+      
+      return savedBookId;
     } catch (e) {
       console.error('Error saving book to storage:', e);
       throw e;
@@ -78,11 +87,12 @@ export const storage = {
       if (book) {
         book.bookmarkPage = pageNumber;
         book.lastReadAt = Date.now();
-        // Calculate progress percentage
+        book.updatedAt = Date.now();
         if (book.totalPages > 0) {
           book.progressPercent = Math.min(100, Math.round(((pageNumber + 1) / book.totalPages) * 100));
         }
         localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(books));
+        syncService.queueSync(books);
       }
     } catch (e) {
       console.error('Error updating bookmark:', e);
@@ -97,7 +107,6 @@ export const storage = {
         if (!book.customBookmarks) book.customBookmarks = [];
         const page = pageNumber !== null ? pageNumber : book.bookmarkPage || 0;
         
-        // Don't add duplicate page bookmarks
         const existing = book.customBookmarks.find(b => b.page === page);
         if (!existing) {
           book.customBookmarks.push({
@@ -107,7 +116,9 @@ export const storage = {
             createdAt: Date.now()
           });
           book.customBookmarks.sort((a, b) => a.page - b.page);
+          book.updatedAt = Date.now();
           localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(books));
+          syncService.queueSync(books);
         }
         return book.customBookmarks;
       }
@@ -123,7 +134,9 @@ export const storage = {
       const book = books.find(b => b.id === bookId);
       if (book && book.customBookmarks) {
         book.customBookmarks = book.customBookmarks.filter(b => b.id !== bookmarkId);
+        book.updatedAt = Date.now();
         localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(books));
+        syncService.queueSync(books);
         return book.customBookmarks;
       }
     } catch (e) {
@@ -141,11 +154,24 @@ export const storage = {
       if (this.getActiveBookId() === id) {
         localStorage.removeItem(STORAGE_KEYS.ACTIVE_BOOK_ID);
       }
+
+      syncService.queueSync(books);
       return true;
     } catch (e) {
       console.error('Error deleting book:', e);
       return false;
     }
+  },
+
+  // --- Cloud Database Synchronizer ---
+  async syncWithCloud() {
+    const localBooks = this.getBooks();
+    const res = await syncService.sync(localBooks);
+    if (res.success && Array.isArray(res.books)) {
+      localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(res.books));
+      return res.books;
+    }
+    return localBooks;
   },
 
   // --- Active Session ---
@@ -214,6 +240,8 @@ export const storage = {
       }
       
       localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(existingBooks));
+      syncService.queueSync(existingBooks);
+      
       if (data.settings) {
         this.saveSettings(data.settings);
       }

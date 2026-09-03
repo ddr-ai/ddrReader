@@ -1,11 +1,14 @@
 /**
- * ddrReader - Top Navbar Component
+ * ddrReader - Top Navbar Component with Database Sync Indicator
  */
 
+import { syncService } from '../services/syncService.js';
+
 export class Navbar {
-  constructor({ onTabChange, onOpenSettings, onToggleFullscreen }) {
+  constructor({ onTabChange, onOpenSettings, onOpenSync, onToggleFullscreen }) {
     this.onTabChange = onTabChange;
     this.onOpenSettings = onOpenSettings;
+    this.onOpenSync = onOpenSync;
     this.onToggleFullscreen = onToggleFullscreen;
     this.currentTab = 'library';
     this.activeBookTitle = null;
@@ -52,6 +55,12 @@ export class Navbar {
         </div>
 
         <div class="nav-actions">
+          <!-- Cloud Database Sync Badge -->
+          <button class="nav-tab-btn" id="nav-sync-btn" style="border: 1px solid var(--border-color); background: var(--bg-secondary); padding: 0.35rem 0.75rem; font-size: 0.8rem; gap: 6px;">
+            <span id="sync-indicator-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #64748b; display: inline-block;"></span>
+            <span id="sync-indicator-text">Cloud Sync</span>
+          </button>
+
           <button class="icon-btn" id="nav-fullscreen-btn" title="Toggle Fullscreen" aria-label="Fullscreen">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
@@ -68,10 +77,11 @@ export class Navbar {
     `;
 
     this.bindEvents(container);
+    this.subscribeSyncStatus(container);
   }
 
   bindEvents(container) {
-    const tabs = container.querySelectorAll('.nav-tab-btn');
+    const tabs = container.querySelectorAll('.nav-tab-btn[data-tab]');
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {
         const tabName = tab.getAttribute('data-tab');
@@ -79,6 +89,11 @@ export class Navbar {
         if (this.onTabChange) this.onTabChange(tabName);
       });
     });
+
+    const syncBtn = container.querySelector('#nav-sync-btn');
+    if (syncBtn && this.onOpenSync) {
+      syncBtn.addEventListener('click', () => this.onOpenSync());
+    }
 
     const settingsBtn = container.querySelector('#nav-settings-btn');
     if (settingsBtn && this.onOpenSettings) {
@@ -91,9 +106,35 @@ export class Navbar {
     }
   }
 
+  subscribeSyncStatus(container) {
+    const dot = container.querySelector('#sync-indicator-dot');
+    const text = container.querySelector('#sync-indicator-text');
+
+    syncService.onStatusChange((info) => {
+      if (!dot || !text) return;
+      if (info.status === 'connected') {
+        dot.style.background = '#10b981';
+        dot.style.boxShadow = '0 0 6px rgba(16, 185, 129, 0.6)';
+        text.innerText = 'Synced';
+      } else if (info.status === 'syncing') {
+        dot.style.background = '#f59e0b';
+        dot.style.boxShadow = '0 0 6px rgba(245, 158, 11, 0.6)';
+        text.innerText = 'Syncing...';
+      } else if (info.status === 'error') {
+        dot.style.background = '#ef4444';
+        dot.style.boxShadow = 'none';
+        text.innerText = 'Sync Error';
+      } else {
+        dot.style.background = '#64748b';
+        dot.style.boxShadow = 'none';
+        text.innerText = 'Connect DB';
+      }
+    });
+  }
+
   setActiveTab(tabName) {
     this.currentTab = tabName;
-    document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+    document.querySelectorAll('.nav-tab-btn[data-tab]').forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
     });
   }

@@ -1,14 +1,16 @@
 /**
- * ddrReader - Library & Bookshelf Component
+ * ddrReader - Library & Bookshelf Component with Cloud Sync Status
  */
 
 import { storage } from '../services/storage.js';
+import { syncService } from '../services/syncService.js';
 import { getSampleVirtualBooks } from '../services/sampleBooks.js';
 
 export class Library {
-  constructor({ onOpenBook, onNavigateImport, showToast }) {
+  constructor({ onOpenBook, onNavigateImport, onOpenSync, showToast }) {
     this.onOpenBook = onOpenBook;
     this.onNavigateImport = onNavigateImport;
+    this.onOpenSync = onOpenSync;
     this.showToast = showToast || console.log;
     this.searchQuery = '';
     this.activeFilter = 'all'; // 'all' | 'reading' | 'completed' | 'bookmarked'
@@ -18,7 +20,7 @@ export class Library {
     const existing = storage.getBooks();
     if (existing.length === 0) {
       const samples = getSampleVirtualBooks();
-      samples.forEach(s => storage.saveBook(s));
+      samples.forEach(s => storage.saveBook(s, false));
     }
   }
 
@@ -26,6 +28,7 @@ export class Library {
     this.initLibraryData();
     const books = storage.getBooks();
     const filteredBooks = this.filterBooks(books);
+    const syncStatus = syncService.getStatus();
 
     container.innerHTML = `
       <div class="library-container">
@@ -35,7 +38,11 @@ export class Library {
             <h1>Virtual Library</h1>
             <p>Access your converted virtual books, resume reading where you left off, or add new articles.</p>
           </div>
-          <div style="display: flex; gap: 0.75rem;">
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <button class="nav-tab-btn" id="lib-sync-action-btn" style="background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.85rem; padding: 0.5rem 1rem;">
+              <span>☁️</span>
+              <span>${syncStatus.status === 'connected' ? 'Synced with Cloud' : 'Connect Cloud Database'}</span>
+            </button>
             <button class="primary-btn" id="lib-create-book-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -64,6 +71,11 @@ export class Library {
           </div>
 
           <div style="display: flex; gap: 0.5rem; margin-left: auto;">
+            <button class="icon-btn" id="lib-sync-now-btn" title="Sync With Database Now">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+              </svg>
+            </button>
             <button class="icon-btn" id="lib-export-btn" title="Export Library Backup (JSON)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -205,13 +217,29 @@ export class Library {
   }
 
   bindEvents(container) {
-    // New Book button
     const createBtn = container.querySelector('#lib-create-book-btn');
     if (createBtn && this.onNavigateImport) {
       createBtn.addEventListener('click', () => this.onNavigateImport());
     }
 
-    // Search Input
+    const syncActionBtn = container.querySelector('#lib-sync-action-btn');
+    if (syncActionBtn) {
+      syncActionBtn.addEventListener('click', () => {
+        const syncModalEl = document.querySelector('#sync-modal-overlay');
+        if (syncModalEl) syncModalEl.classList.add('open');
+      });
+    }
+
+    const syncNowBtn = container.querySelector('#lib-sync-now-btn');
+    if (syncNowBtn) {
+      syncNowBtn.addEventListener('click', async () => {
+        this.showToast('Syncing with database...', 'info');
+        const books = await storage.syncWithCloud();
+        this.showToast('Library synchronized!', 'success');
+        this.render(container);
+      });
+    }
+
     const searchInput = container.querySelector('#lib-search-input');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
@@ -225,7 +253,6 @@ export class Library {
       });
     }
 
-    // Filters
     container.querySelectorAll('.filter-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         this.activeFilter = chip.getAttribute('data-filter');
@@ -233,7 +260,6 @@ export class Library {
       });
     });
 
-    // Book Cards Clicking
     container.querySelectorAll('.book-card').forEach(card => {
       card.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="delete"]')) return;
@@ -242,7 +268,6 @@ export class Library {
       });
     });
 
-    // Open & Delete buttons
     container.querySelectorAll('[data-action="open"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -263,7 +288,6 @@ export class Library {
       });
     });
 
-    // Export Backup
     const exportBtn = container.querySelector('#lib-export-btn');
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
@@ -279,7 +303,6 @@ export class Library {
       });
     }
 
-    // Import Backup
     const importInput = container.querySelector('#lib-import-file');
     if (importInput) {
       importInput.addEventListener('change', (e) => {
@@ -300,7 +323,6 @@ export class Library {
       });
     }
 
-    // Empty state buttons
     const emptyImportBtn = container.querySelector('#btn-empty-import');
     if (emptyImportBtn && this.onNavigateImport) {
       emptyImportBtn.addEventListener('click', () => this.onNavigateImport());

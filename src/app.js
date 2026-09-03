@@ -1,5 +1,5 @@
 /**
- * ddrReader - Application Orchestrator
+ * ddrReader - Application Orchestrator with Cloud Database Sync
  */
 
 import { Navbar } from './components/Navbar.js';
@@ -7,7 +7,9 @@ import { Library } from './components/Library.js';
 import { UrlImporter } from './components/UrlImporter.js';
 import { BookViewer } from './components/BookViewer.js';
 import { SettingsModal } from './components/SettingsModal.js';
+import { SyncModal } from './components/SyncModal.js';
 import { storage } from './services/storage.js';
+import { syncService } from './services/syncService.js';
 import { audioService } from './services/audioService.js';
 
 export class App {
@@ -42,6 +44,7 @@ export class App {
     this.navbar = new Navbar({
       onTabChange: (tab) => this.switchView(tab),
       onOpenSettings: () => this.settingsModal.open(),
+      onOpenSync: () => this.syncModal.open(),
       onToggleFullscreen: () => this.toggleFullscreen()
     });
 
@@ -65,20 +68,57 @@ export class App {
       onSettingsChanged: (settings) => this.applySettings(settings),
       showToast: this.showToast
     });
+
+    this.syncModal = new SyncModal({
+      onSyncCompleted: () => {
+        if (this.currentView === 'library') {
+          const libContainer = document.getElementById('view-library');
+          if (libContainer) this.library.render(libContainer);
+        }
+      },
+      showToast: this.showToast
+    });
+
+    // Realtime Remote Updates Handler
+    syncService.onRemoteDataReceived = (payload) => {
+      this.handleRealtimePayload(payload);
+    };
   }
 
-  init() {
-    // Initial sound setting
+  async init() {
     const settings = storage.getSettings();
     audioService.setEnabled(settings.soundEnabled !== false);
 
     // Render static shells
     this.navbar.render(document.getElementById('nav-mount'));
     this.settingsModal.render(document.getElementById('modal-mount'));
+    
+    const syncMount = document.createElement('div');
+    syncMount.id = 'sync-modal-mount';
+    document.body.appendChild(syncMount);
+    this.syncModal.render(syncMount);
+
+    // Initial Cloud Pull
+    try {
+      await storage.syncWithCloud();
+    } catch (e) {}
 
     // Handle hash routes
     this.handleRouting();
     window.addEventListener('hashchange', () => this.handleRouting());
+  }
+
+  handleRealtimePayload(payload) {
+    // If a book was updated or inserted on another device
+    if (payload.new && payload.new.data) {
+      const bookObj = typeof payload.new.data === 'string' ? JSON.parse(payload.new.data) : payload.new.data;
+      storage.saveBook(bookObj, false); // save without re-broadcasting
+      
+      if (this.currentView === 'library') {
+        const libContainer = document.getElementById('view-library');
+        if (libContainer) this.library.render(libContainer);
+      }
+    }
   }
 
   handleRouting() {
@@ -101,7 +141,6 @@ export class App {
     this.currentView = viewName;
     this.navbar.setActiveTab(viewName);
 
-    // Toggle container views
     document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
 
     if (viewName === 'library') {
