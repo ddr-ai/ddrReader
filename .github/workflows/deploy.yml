@@ -30,9 +30,7 @@ jobs:
           node-version: 22
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
+        run: npm install -g pnpm
 
       - name: Install Dependencies
         run: pnpm install --no-frozen-lockfile
