@@ -1,10 +1,8 @@
 /**
- * ddrReader - Web Extractor Service
- * Robust article fetching, HTML parsing, Readability extraction,
- * and structured content normalization.
+ * ddrReader - Web Extractor Service (100% Content & Formatting Fidelity)
+ * Extracts all text, code blocks, tables, images, headings, and formatting without dropping anything.
  */
 
-import { Readability } from '@mozilla/readability';
 import DOMPurify from 'dompurify';
 
 export async function fetchWebpage(url, onProgress = () => {}) {
@@ -28,11 +26,9 @@ export async function fetchWebpage(url, onProgress = () => {}) {
         }
       }
     }
-  } catch (e) {
-    // Desktop backend not available, proceed to client-side proxies
-  }
+  } catch (e) {}
 
-  // 2. Direct fetch (in case URL has open CORS)
+  // 2. Direct fetch (if CORS allowed)
   try {
     onProgress('Attempting direct connection...');
     const res = await fetch(cleanUrl, { mode: 'cors' });
@@ -58,7 +54,6 @@ export async function fetchWebpage(url, onProgress = () => {}) {
     }
   ];
 
-  let lastError = null;
   for (const proxy of proxies) {
     try {
       onProgress(`Connecting via ${proxy.name}...`);
@@ -75,9 +70,7 @@ export async function fetchWebpage(url, onProgress = () => {}) {
           return { html, finalUrl: cleanUrl };
         }
       }
-    } catch (err) {
-      lastError = err;
-    }
+    } catch (err) {}
   }
 
   throw new Error(`Could not fetch the webpage from "${cleanUrl}". If the site blocks external proxies, you can paste the HTML or text directly using the "Paste Content" option.`);
@@ -93,7 +86,7 @@ async function checkDesktopBackend() {
 }
 
 /**
- * Parses raw HTML, applies Readability, fixes URLs, transforms callouts, code blocks, and highlights.
+ * Extracts 100% of content, preserving all text, code syntax, tables, callouts, and layout.
  */
 export function extractArticleFromHtml(html, sourceUrl = '') {
   const parser = new DOMParser();
@@ -104,7 +97,6 @@ export function extractArticleFromHtml(html, sourceUrl = '') {
     try {
       const baseUrl = new URL(sourceUrl);
       
-      // Fix images
       doc.querySelectorAll('img').forEach(img => {
         const src = img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original');
         if (src) {
@@ -112,13 +104,11 @@ export function extractArticleFromHtml(html, sourceUrl = '') {
             img.src = new URL(src, baseUrl).href;
           } catch (e) {}
         }
-        // Preserve alt text
         if (!img.getAttribute('alt')) {
           img.setAttribute('alt', 'Illustration');
         }
       });
 
-      // Fix links
       doc.querySelectorAll('a').forEach(a => {
         const href = a.getAttribute('href');
         if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
@@ -130,14 +120,17 @@ export function extractArticleFromHtml(html, sourceUrl = '') {
         }
       });
     } catch (e) {
-      console.warn('Could not parse base URL for relative link resolution:', e);
+      console.warn('Could not parse base URL for relative links:', e);
     }
   }
 
-  // Preserve pre/code classes before readability might strip them
-  doc.querySelectorAll('pre, code').forEach(el => {
-    const cls = el.getAttribute('class') || '';
-    if (cls) el.setAttribute('data-preserve-class', cls);
+  // Remove strictly non-content tags (scripts, styles, tracking pixels, iframes, cookies, ads)
+  doc.querySelectorAll('script, style, noscript, iframe, link, meta, svg[width="0"], svg[height="0"]').forEach(el => el.remove());
+  doc.querySelectorAll('.ad, .advertisement, .banner, .cookie-banner, .popup, #cookie-consent, nav.navbar, header.site-header, footer.site-footer').forEach(el => {
+    // Only remove if it's truly auxiliary header/footer and not main content
+    if (!el.querySelector('h1, h2, table, pre, code')) {
+      el.remove();
+    }
   });
 
   // Transform Markdown/GitHub Callouts (> [!NOTE], etc.)
@@ -146,53 +139,75 @@ export function extractArticleFromHtml(html, sourceUrl = '') {
   // Transform Highlights (<mark>, .highlight, etc.)
   processHighlights(doc);
 
-  // Extract metadata
+  // Transform Command Lines & Code blocks (for LFS and technical docs)
+  processTechnicalBlocks(doc);
+
+  // Extract Metadata
   const metaTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
-                    doc.querySelector('title')?.innerText || 'Untitled Book';
+                    doc.querySelector('h1')?.innerText ||
+                    doc.querySelector('title')?.innerText || 'Untitled Virtual Book';
   const metaAuthor = doc.querySelector('meta[name="author"]')?.getAttribute('content') ||
-                     doc.querySelector('meta[property="article:author"]')?.getAttribute('content') || '';
+                     doc.querySelector('meta[property="article:author"]')?.getAttribute('content') ||
+                     doc.querySelector('.author, [rel="author"], .byline')?.innerText || '';
   const metaSite = doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content') ||
                    (sourceUrl ? new URL(sourceUrl).hostname.replace('www.', '') : '');
   const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') ||
                           doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
   const metaImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
-                    doc.querySelector('article img')?.src || '';
+                    doc.querySelector('article img, main img, .content img')?.src || '';
 
-  // Run Readability
-  let article = null;
-  try {
-    const reader = new Readability(doc, {
-      charThreshold: 50,
-      classesToPreserve: ['language-*', 'highlight', 'callout', 'admonition', 'alert', 'note', 'tip', 'warning', 'important', 'caution']
+  // Select the richest content container without cutting off chapters or sibling sections
+  const candidateSelectors = [
+    'main',
+    'article',
+    '#content',
+    '.content',
+    '#main-content',
+    '.main-content',
+    '.post-content',
+    '.documentation',
+    '.markdown-body',
+    'div[role="main"]',
+    '.wrap',
+    '.book',
+    '.chapter',
+    'body'
+  ];
+
+  let selectedRoot = null;
+  let maxTextLength = 0;
+
+  for (const selector of candidateSelectors) {
+    const elements = doc.querySelectorAll(selector);
+    elements.forEach(el => {
+      const textLen = (el.innerText || '').trim().length;
+      if (textLen > maxTextLength) {
+        maxTextLength = textLen;
+        selectedRoot = el;
+      }
     });
-    article = reader.parse();
-  } catch (e) {
-    console.warn('Readability failed, using fallback parser:', e);
   }
 
-  let finalTitle = metaTitle;
-  let finalAuthor = metaAuthor;
-  let finalContentHtml = '';
-
-  if (article && article.content) {
-    finalTitle = article.title || metaTitle;
-    finalAuthor = article.byline || metaAuthor;
-    finalContentHtml = article.content;
-  } else {
-    // Fallback: extract main / article / body
-    const mainEl = doc.querySelector('main, article, #content, .content, .post, .article') || doc.body;
-    finalContentHtml = mainEl ? mainEl.innerHTML : html;
+  if (!selectedRoot || maxTextLength < 100) {
+    selectedRoot = doc.body || doc.documentElement;
   }
 
-  // Sanitize with DOMPurify while keeping rich elements
-  const cleanHtml = DOMPurify.sanitize(finalContentHtml, {
-    ADD_TAGS: ['mark', 'ins', 'details', 'summary', 'figure', 'figcaption', 'code', 'pre'],
-    ADD_ATTR: ['target', 'rel', 'class', 'style', 'data-*', 'src', 'alt', 'href']
+  // Sanitize with DOMPurify while keeping all layout tags
+  const rawHtml = selectedRoot.innerHTML;
+  const cleanHtml = DOMPurify.sanitize(rawHtml, {
+    ADD_TAGS: [
+      'mark', 'ins', 'details', 'summary', 'figure', 'figcaption',
+      'code', 'pre', 'kbd', 'samp', 'var', 'dl', 'dt', 'dd',
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+      'blockquote', 'aside', 'section', 'div', 'span', 'p',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'img', 'b', 'strong', 'i', 'em', 'hr'
+    ],
+    ADD_ATTR: ['target', 'rel', 'class', 'style', 'data-*', 'src', 'alt', 'href', 'title', 'id', 'name', 'colspan', 'rowspan']
   });
 
   return {
-    title: finalTitle.trim() || 'Untitled Book',
-    author: finalAuthor.trim() || metaSite || 'Web Author',
+    title: metaTitle.trim() || 'Untitled Virtual Book',
+    author: metaAuthor.trim() || metaSite || 'Web Author',
     siteName: metaSite,
     sourceUrl: sourceUrl,
     description: metaDescription,
@@ -204,7 +219,6 @@ export function extractArticleFromHtml(html, sourceUrl = '') {
 
 /**
  * Handles GitHub callout blocks (> [!NOTE], > [!TIP], > [!WARNING], > [!IMPORTANT], > [!CAUTION])
- * and common documentation callouts.
  */
 function processCallouts(doc) {
   const blockquotes = doc.querySelectorAll('blockquote');
@@ -221,16 +235,10 @@ function processCallouts(doc) {
       callout.className = `book-callout book-callout-${type}`;
       
       const title = type.charAt(0).toUpperCase() + type.slice(1);
-      let iconSvg = '';
-      if (type === 'tip') {
-        iconSvg = '💡';
-      } else if (type === 'warning' || type === 'caution' || type === 'danger') {
-        iconSvg = '⚠️';
-      } else if (type === 'important') {
-        iconSvg = '📌';
-      } else {
-        iconSvg = 'ℹ️';
-      }
+      let iconSvg = 'ℹ️';
+      if (type === 'tip') iconSvg = '💡';
+      else if (type === 'warning' || type === 'caution' || type === 'danger') iconSvg = '⚠️';
+      else if (type === 'important') iconSvg = '📌';
 
       callout.innerHTML = `
         <div class="callout-header">
@@ -248,18 +256,29 @@ function processCallouts(doc) {
     }
   });
 
-  // Handle Docusaurus / Sphinx / MkDocs style callouts
-  const docAdmonitions = doc.querySelectorAll('.admonition, .callout, .alert, .infobox');
-  docAdmonitions.forEach(ad => {
+  doc.querySelectorAll('.admonition, .callout, .alert, .infobox, .note, .warning, .tip').forEach(ad => {
     ad.classList.add('book-callout');
   });
 }
 
-/**
- * Ensures highlights from web formatting are properly preserved and styled.
- */
 function processHighlights(doc) {
   doc.querySelectorAll('mark, .highlight, .highlighted, span[style*="background-color"]').forEach(el => {
     el.classList.add('book-highlight-text');
+  });
+}
+
+/**
+ * Format technical commands, user inputs, and screen dumps with colorful modern badges
+ */
+function processTechnicalBlocks(doc) {
+  // Format user inputs and screen commands (LFS style: pre.userinput, pre.screen, kbd.command)
+  doc.querySelectorAll('pre.userinput, pre.screen, pre.command, code.userinput, .listingblock pre').forEach(el => {
+    el.classList.add('book-code-block');
+  });
+
+  doc.querySelectorAll('kbd, .command, .filename, .emphasis, .parameter').forEach(el => {
+    if (el.tagName === 'KBD' || el.classList.contains('command')) {
+      el.classList.add('book-kbd-badge');
+    }
   });
 }

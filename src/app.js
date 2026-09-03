@@ -156,6 +156,10 @@ export class App {
   switchView(viewName, updateHash = true) {
     if (this.currentView === 'reader' && viewName !== 'reader') {
       this.bookViewer.destroy();
+      document.body.classList.remove('reader-fullscreen-active');
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
     }
 
     this.currentView = viewName;
@@ -174,11 +178,19 @@ export class App {
       this.urlImporter.render(importContainer);
       if (updateHash) window.location.hash = 'import';
     } else if (viewName === 'reader' && this.activeBookId) {
+      document.body.classList.add('reader-fullscreen-active');
       const readerContainer = document.getElementById('view-reader');
       readerContainer.classList.add('active');
       this.bookViewer.loadBook(this.activeBookId);
       this.bookViewer.render(readerContainer);
       if (updateHash) window.location.hash = `book/${this.activeBookId}`;
+
+      // Request browser fullscreen on user navigation
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } catch (e) {}
     }
   }
 
@@ -210,8 +222,9 @@ export class App {
       });
     } else {
       if (document.exitFullscreen) {
-        document.exitFullscreen();
+        document.exitFullscreen().catch(() => {});
       }
     }
   }
 }
+

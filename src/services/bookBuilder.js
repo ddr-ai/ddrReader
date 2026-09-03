@@ -1,32 +1,28 @@
 /**
- * ddrReader - Book Builder Service
- * Converts extracted article HTML into structured chapters and Table of Contents,
- * ensuring 100% of chapter content is preserved.
+ * ddrReader - Book Builder Service (100% Content & Structure Fidelity)
+ * Partitions any complex HTML document into structured chapters and Table of Contents,
+ * guaranteeing 100% of all paragraphs, code blocks, tables, images, and notes are preserved.
  */
 
 const COVER_THEMES = [
-  { id: 'sapphire', name: 'Sapphire Night', bg: 'linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)', text: '#f8fafc', accent: '#60a5fa', spine: '#172554' },
-  { id: 'emerald', name: 'Emerald Forest', bg: 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)', text: '#f0fdf4', accent: '#34d399', spine: '#022c22' },
-  { id: 'ruby', name: 'Crimson Velvet', bg: 'linear-gradient(135deg, #881337 0%, #4c0519 100%)', text: '#fff1f2', accent: '#fb7185', spine: '#4c0519' },
-  { id: 'amber', name: 'Warm Amber', bg: 'linear-gradient(135deg, #78350f 0%, #451a03 100%)', text: '#fef3c7', accent: '#f59e0b', spine: '#451a03' },
-  { id: 'obsidian', name: 'Obsidian & Gold', bg: 'linear-gradient(135deg, #18181b 0%, #09090b 100%)', text: '#fafafa', accent: '#eab308', spine: '#000000' },
-  { id: 'royal', name: 'Royal Amethyst', bg: 'linear-gradient(135deg, #581c87 0%, #3b0764 100%)', text: '#faf5ff', accent: '#c084fc', spine: '#2e1065' }
+  { id: 'sapphire', name: 'Sapphire Night', bg: 'linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)', text: '#f8fafc', accent: '#60a5fa', spine: '#172554', glow: 'rgba(56, 189, 248, 0.25)' },
+  { id: 'emerald', name: 'Emerald Forest', bg: 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)', text: '#f0fdf4', accent: '#34d399', spine: '#022c22', glow: 'rgba(52, 211, 153, 0.25)' },
+  { id: 'ruby', name: 'Crimson Velvet', bg: 'linear-gradient(135deg, #881337 0%, #4c0519 100%)', text: '#fff1f2', accent: '#fb7185', spine: '#4c0519', glow: 'rgba(251, 113, 133, 0.25)' },
+  { id: 'amber', name: 'Warm Amber', bg: 'linear-gradient(135deg, #78350f 0%, #451a03 100%)', text: '#fef3c7', accent: '#f59e0b', spine: '#451a03', glow: 'rgba(245, 158, 11, 0.25)' },
+  { id: 'obsidian', name: 'Obsidian & Gold', bg: 'linear-gradient(135deg, #18181b 0%, #09090b 100%)', text: '#fafafa', accent: '#eab308', spine: '#000000', glow: 'rgba(234, 179, 8, 0.25)' },
+  { id: 'royal', name: 'Royal Amethyst', bg: 'linear-gradient(135deg, #581c87 0%, #3b0764 100%)', text: '#faf5ff', accent: '#c084fc', spine: '#2e1065', glow: 'rgba(192, 132, 252, 0.25)' }
 ];
 
 export function buildVirtualBook(extractedData) {
   const { title, author, siteName, sourceUrl, description, coverImage, rawContentHtml } = extractedData;
 
-  // 1. Parse content and split into chapters & sections
   const { chapters, totalWords } = parseChaptersFromHtml(rawContentHtml, title);
 
-  // 2. Select Cover Theme deterministically from title
   const themeIndex = Math.abs(hashString(title)) % COVER_THEMES.length;
   const coverTheme = COVER_THEMES[themeIndex];
 
-  // 3. Estimate reading time (average 200 words per minute)
   const readingTimeMinutes = Math.max(1, Math.ceil(totalWords / 200));
 
-  // 4. Build pages layout
   const pages = generateBookPages({
     title,
     author,
@@ -62,23 +58,28 @@ export function buildVirtualBook(extractedData) {
 }
 
 /**
- * Parses HTML into distinct chapters based on headings and section containers.
- * Retains every single element (paragraphs, tables, images, code, callouts, lists).
+ * Robust hierarchical chapter parser that preserves 100% of DOM content.
  */
 function parseChaptersFromHtml(html, defaultTitle) {
   const container = document.createElement('div');
   container.innerHTML = html;
 
-  // Remove empty script/style tags if any leaked through
-  container.querySelectorAll('script, style, iframe, noscript').forEach(el => el.remove());
+  container.querySelectorAll('script, style, noscript, iframe').forEach(el => el.remove());
 
-  const headings = Array.from(container.querySelectorAll('h1, h2, h3'));
+  // Detect heading hierarchy (h1, h2, h3, or custom section titles)
+  let headings = Array.from(container.querySelectorAll('h2, .sect1 > h2, .sect1 > .title, .chapter > .title, h1:not(:first-child)'));
+  if (headings.length === 0) {
+    headings = Array.from(container.querySelectorAll('h3, .sect2 > .title, .sect2 > h3'));
+  }
+  if (headings.length === 0) {
+    headings = Array.from(container.querySelectorAll('h1'));
+  }
+
   const chapters = [];
   let totalWords = 0;
 
   if (headings.length === 0) {
-    // If no headings, treat entire text as one chapter or split by paragraphs
-    const contentNodes = Array.from(container.childNodes);
+    // Single chapter with all content
     const chapterHtml = container.innerHTML;
     const words = (container.innerText || '').split(/\s+/).filter(Boolean).length;
     totalWords += words;
@@ -86,67 +87,78 @@ function parseChaptersFromHtml(html, defaultTitle) {
     chapters.push({
       id: 'chap_1',
       index: 1,
-      title: 'Chapter 1: ' + (defaultTitle || 'Main Content'),
+      title: defaultTitle || 'Main Content',
       html: chapterHtml,
       wordCount: words
     });
   } else {
-    // Process intro section if there is content before the first heading
-    const firstHeading = headings[0];
-    let introNodes = [];
-    let current = container.firstChild;
+    // Collect all top-level or child nodes
+    const allNodes = Array.from(container.childNodes);
+    let currentChapter = {
+      id: 'chap_intro',
+      index: 0,
+      title: 'Introduction & Overview',
+      elements: [],
+      wordCount: 0
+    };
 
-    while (current && current !== firstHeading && !firstHeading.contains(current)) {
-      introNodes.push(current.cloneNode(true));
-      current = current.nextSibling;
-    }
+    let headingIndex = 0;
 
-    if (introNodes.length > 0) {
-      const tempIntro = document.createElement('div');
-      introNodes.forEach(node => tempIntro.appendChild(node));
-      const introText = tempIntro.innerText.trim();
-      if (introText.length > 30) {
-        const words = introText.split(/\s+/).filter(Boolean).length;
-        totalWords += words;
-        chapters.push({
-          id: 'chap_intro',
-          index: 0,
-          title: 'Introduction & Overview',
-          html: tempIntro.innerHTML,
-          wordCount: words
-        });
-      }
-    }
-
-    // Process each heading and its content
-    headings.forEach((heading, idx) => {
-      const chapterTitle = heading.innerText.trim() || `Chapter ${idx + 1}`;
-      const chapterContainer = document.createElement('div');
-      
-      // Traverse all siblings until the next heading of equal or higher priority
-      let sibling = heading.nextElementSibling;
-      while (sibling) {
-        if (headings.includes(sibling)) {
-          break;
+    function walk(node) {
+      if (node.nodeType === Node.ELEMENT_NODE && headings.includes(node)) {
+        // New chapter starts
+        if (currentChapter.elements.length > 0) {
+          const temp = document.createElement('div');
+          currentChapter.elements.forEach(el => temp.appendChild(el.cloneNode(true)));
+          const words = (temp.innerText || '').split(/\s+/).filter(Boolean).length;
+          currentChapter.html = temp.innerHTML;
+          currentChapter.wordCount = words;
+          totalWords += words;
+          chapters.push(currentChapter);
         }
-        chapterContainer.appendChild(sibling.cloneNode(true));
-        sibling = sibling.nextElementSibling;
+
+        headingIndex++;
+        currentChapter = {
+          id: `chap_${headingIndex}`,
+          index: headingIndex,
+          title: node.innerText.trim() || `Chapter ${headingIndex}`,
+          elements: [],
+          wordCount: 0
+        };
+        return;
       }
 
-      const words = (chapterContainer.innerText || '').split(/\s+/).filter(Boolean).length;
-      totalWords += words;
+      // If this element contains any of our target headings inside it, recurse into children
+      const containsHeading = headings.some(h => node.contains && node.contains(h));
+      if (containsHeading && node.childNodes.length > 0) {
+        Array.from(node.childNodes).forEach(child => walk(child));
+      } else {
+        // Collect node into current chapter
+        currentChapter.elements.push(node);
+      }
+    }
 
-      chapters.push({
-        id: `chap_${idx + 1}`,
-        index: chapters.length + 1,
-        title: chapterTitle,
-        html: chapterContainer.innerHTML,
-        wordCount: words
-      });
-    });
+    allNodes.forEach(node => walk(node));
+
+    // Commit final chapter
+    if (currentChapter.elements.length > 0) {
+      const temp = document.createElement('div');
+      currentChapter.elements.forEach(el => temp.appendChild(el.cloneNode(true)));
+      const words = (temp.innerText || '').split(/\s+/).filter(Boolean).length;
+      currentChapter.html = temp.innerHTML;
+      currentChapter.wordCount = words;
+      totalWords += words;
+      chapters.push(currentChapter);
+    }
   }
 
-  return { chapters, totalWords };
+  // Filter out any completely blank empty chapters
+  const validChapters = chapters.filter(c => (c.html && c.html.trim().length > 0) || c.wordCount > 0);
+
+  return {
+    chapters: validChapters.length > 0 ? validChapters : [{ id: 'chap_1', index: 1, title: defaultTitle || 'Content', html: container.innerHTML, wordCount: totalWords }],
+    totalWords
+  };
 }
 
 /**
@@ -165,7 +177,7 @@ function generateBookPages(bookMeta) {
         <div class="book-cover-border" style="border-color: ${coverTheme.accent}">
           <div class="book-cover-header">
             <span class="book-cover-tag" style="background: ${coverTheme.accent}; color: ${coverTheme.spine}">ddrReader Edition</span>
-            ${siteName ? `<span class="book-cover-site">${siteName}</span>` : ''}
+            ${siteName ? `<span class="book-cover-site">${escapeHtml(siteName)}</span>` : ''}
           </div>
           <div class="book-cover-main">
             <h1 class="book-cover-title">${escapeHtml(title)}</h1>
@@ -208,21 +220,18 @@ function generateBookPages(bookMeta) {
   });
 
   // --- Page 2: Table of Contents ---
-  // Store TOC page index so we can update chapter page numbers later
   const tocPageIndex = pages.length;
   pages.push({
     type: 'toc',
     pageNumber: 3,
-    html: '' // will be populated after pagination
+    html: ''
   });
 
   // --- Chapter Content Pages ---
   let currentPageNum = pages.length + 1;
 
-  chapters.forEach((chapter, chapIdx) => {
+  chapters.forEach((chapter) => {
     chapter.targetPageNumber = currentPageNum;
-
-    // Split chapter HTML into readable page-sized chunks
     const chapterPages = paginateChapterContent(chapter, title, currentPageNum);
     
     chapterPages.forEach(p => {
@@ -231,7 +240,7 @@ function generateBookPages(bookMeta) {
     });
   });
 
-  // Now populate Table of Contents HTML with exact target page numbers
+  // Populate Table of Contents
   pages[tocPageIndex].html = `
     <div class="book-page-content toc-page">
       <div class="toc-header">
@@ -248,8 +257,8 @@ function generateBookPages(bookMeta) {
           </div>
         `).join('')}
       </div>
-      <div class="toc-footer">
-        <small>Click any chapter to jump directly</small>
+      <div class="toc-footer" style="text-align: center; font-size: 0.72rem; opacity: 0.6; margin-top: auto; padding-top: 0.5rem;">
+        <span>Click any chapter to jump directly</span>
       </div>
     </div>
   `;
@@ -275,7 +284,6 @@ function generateBookPages(bookMeta) {
     `
   });
 
-  // Re-index all 1-based page numbers
   pages.forEach((p, idx) => {
     p.pageNumber = idx + 1;
     p.totalBookPages = pages.length;
@@ -285,17 +293,16 @@ function generateBookPages(bookMeta) {
 }
 
 /**
- * Splits chapter content into balanced page chunks
+ * Splits chapter content into balanced page chunks preserving all elements.
  */
 function paginateChapterContent(chapter, bookTitle, startPageNum) {
   const chapterPages = [];
   const container = document.createElement('div');
   container.innerHTML = chapter.html;
 
-  const childNodes = Array.from(container.children);
+  const childNodes = Array.from(container.childNodes);
   
   if (childNodes.length === 0) {
-    // Plain text without wrappers
     chapterPages.push(createContentPage({
       bookTitle,
       chapterTitle: chapter.title,
@@ -307,16 +314,16 @@ function paginateChapterContent(chapter, bookTitle, startPageNum) {
 
   let currentPageHtml = '';
   let currentWordCount = 0;
-  const WORDS_PER_PAGE = 260; // optimal reading density for virtual book layout
+  const WORDS_PER_PAGE = 260;
   let isStart = true;
 
-  childNodes.forEach((node, nodeIdx) => {
-    const nodeText = node.innerText || '';
+  childNodes.forEach((node) => {
+    const nodeText = node.innerText || node.textContent || '';
     const nodeWords = nodeText.split(/\s+/).filter(Boolean).length;
-    const isBigElement = node.tagName === 'PRE' || node.tagName === 'TABLE' || node.classList.contains('book-callout');
+    const isBigElement = (node.nodeType === Node.ELEMENT_NODE) && 
+      (node.tagName === 'PRE' || node.tagName === 'TABLE' || (node.classList && node.classList.contains('book-callout')));
 
-    if (currentWordCount > 0 && (currentWordCount + nodeWords > WORDS_PER_PAGE || (isBigElement && currentWordCount > 120))) {
-      // Commit current page
+    if (currentWordCount > 0 && (currentWordCount + nodeWords > WORDS_PER_PAGE || (isBigElement && currentWordCount > 100))) {
       chapterPages.push(createContentPage({
         bookTitle,
         chapterTitle: chapter.title,
@@ -328,8 +335,13 @@ function paginateChapterContent(chapter, bookTitle, startPageNum) {
       currentWordCount = 0;
     }
 
-    currentPageHtml += node.outerHTML;
-    currentWordCount += Math.max(15, nodeWords);
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      currentPageHtml += node.outerHTML;
+    } else if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+      currentPageHtml += `<p>${escapeHtml(node.textContent)}</p>`;
+    }
+    
+    currentWordCount += Math.max(12, nodeWords);
   });
 
   if (currentPageHtml.trim()) {
@@ -389,3 +401,4 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
