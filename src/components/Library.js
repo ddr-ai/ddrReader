@@ -4,7 +4,6 @@
 
 import { storage } from '../services/storage.js';
 import { syncService } from '../services/syncService.js';
-import { getSampleVirtualBooks } from '../services/sampleBooks.js';
 
 export class Library {
   constructor({ onOpenBook, onNavigateImport, onOpenSync, showToast }) {
@@ -16,16 +15,7 @@ export class Library {
     this.activeFilter = 'all'; // 'all' | 'reading' | 'completed' | 'bookmarked'
   }
 
-  initLibraryData() {
-    const existing = storage.getBooks();
-    if (existing.length === 0) {
-      const samples = getSampleVirtualBooks();
-      samples.forEach(s => storage.saveBook(s, false));
-    }
-  }
-
   render(container) {
-    this.initLibraryData();
     const books = storage.getBooks();
     const filteredBooks = this.filterBooks(books);
     const syncStatus = syncService.getStatus();
@@ -205,12 +195,17 @@ export class Library {
           </svg>
         </div>
         <div>
-          <h3>No Virtual Books Found</h3>
-          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px;">Convert your first webpage or reset sample books.</p>
+          <h3>Your Library is Empty</h3>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px;">Convert a webpage or documentation URL into your first 3D virtual book.</p>
         </div>
-        <div style="display: flex; gap: 0.75rem;">
-          <button class="primary-btn" id="btn-empty-import">Create From URL</button>
-          <button class="nav-tab-btn" id="btn-empty-reload" style="background: var(--bg-tertiary); color: var(--text-primary);">Reset Sample Books</button>
+        <div>
+          <button class="primary-btn" id="btn-empty-import">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Create Book from URL</span>
+          </button>
         </div>
       </div>
     `;
@@ -326,16 +321,6 @@ export class Library {
     const emptyImportBtn = container.querySelector('#btn-empty-import');
     if (emptyImportBtn && this.onNavigateImport) {
       emptyImportBtn.addEventListener('click', () => this.onNavigateImport());
-    }
-
-    const emptyReloadBtn = container.querySelector('#btn-empty-reload');
-    if (emptyReloadBtn) {
-      emptyReloadBtn.addEventListener('click', () => {
-        const samples = getSampleVirtualBooks();
-        samples.forEach(s => storage.saveBook(s));
-        this.showToast('Sample virtual books reloaded!', 'success');
-        this.render(container);
-      });
     }
   }
 }
