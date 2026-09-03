@@ -1,10 +1,11 @@
 /**
  * ddrReader - Universal Cloud Database & Cross-Device Sync Service
  * Seamlessly syncs virtual books, chapters, bookmarks, and reading positions across devices.
- * Supports Supabase (PostgreSQL Cloud), Desktop/Custom Server API, and Instant Sync Keys.
+ * Supports Supabase (PostgreSQL Cloud), Desktop Server API, Instant QR Device Pairing, and Auto-connect.
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { DEFAULT_CONFIG } from '../config.js';
 
 const SYNC_CONFIG_KEY = 'ddr_reader_sync_config';
 
@@ -26,9 +27,22 @@ export class SyncService {
   loadConfig() {
     try {
       const data = localStorage.getItem(SYNC_CONFIG_KEY);
-      return data ? JSON.parse(data) : {
+      if (data) return JSON.parse(data);
+      
+      // Fallback to default config if enabled
+      if (DEFAULT_CONFIG && DEFAULT_CONFIG.autoConnectSupabase && DEFAULT_CONFIG.supabaseUrl) {
+        return {
+          enabled: true,
+          provider: 'supabase',
+          supabaseUrl: DEFAULT_CONFIG.supabaseUrl,
+          supabaseKey: DEFAULT_CONFIG.supabaseKey,
+          syncUserId: DEFAULT_CONFIG.syncUserId || 'default_user'
+        };
+      }
+
+      return {
         enabled: false,
-        provider: 'none', // 'supabase' | 'server' | 'synckey'
+        provider: 'none',
         supabaseUrl: '',
         supabaseKey: '',
         serverUrl: 'http://localhost:3300/api',
@@ -48,6 +62,47 @@ export class SyncService {
     localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(this.config));
     this.initializeProvider();
     this.notifyListeners();
+  }
+
+  /**
+   * Generates a 1-click pairing URL for scanning or sending to a new device.
+   */
+  generatePairingUrl() {
+    if (!this.config.enabled) return null;
+    const payload = {
+      provider: this.config.provider,
+      supabaseUrl: this.config.supabaseUrl,
+      supabaseKey: this.config.supabaseKey,
+      serverUrl: this.config.serverUrl,
+      syncUserId: this.config.syncUserId
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}#sync=${encoded}`;
+  }
+
+  /**
+   * Parses and activates pairing configuration from a pairing URL payload.
+   */
+  importPairingPayload(encodedStr) {
+    try {
+      const decoded = decodeURIComponent(escape(atob(encodedStr)));
+      const payload = JSON.parse(decoded);
+      if (payload && (payload.supabaseUrl || payload.serverUrl)) {
+        this.saveConfig({
+          enabled: true,
+          provider: payload.provider || 'supabase',
+          supabaseUrl: payload.supabaseUrl || '',
+          supabaseKey: payload.supabaseKey || '',
+          serverUrl: payload.serverUrl || '',
+          syncUserId: payload.syncUserId || 'default_user'
+        });
+        return { success: true, config: payload };
+      }
+    } catch (e) {
+      console.error('Pairing import error:', e);
+    }
+    return { success: false };
   }
 
   onStatusChange(callback) {
@@ -95,14 +150,12 @@ export class SyncService {
         }
         this.supabase = createClient(this.config.supabaseUrl, this.config.supabaseKey);
         
-        // Test query
         const { error } = await this.supabase
           .from('ddr_books')
           .select('id')
           .limit(1);
 
         if (error && error.code === '42P01') {
-          // Table doesn't exist yet, we will provide SQL instructions
           this.status = 'connected';
         } else if (error) {
           throw error;
@@ -152,9 +205,6 @@ export class SyncService {
     }
   }
 
-  /**
-   * Main synchronization routine: pulls from database and merges with local storage.
-   */
   async sync(localBooks = []) {
     if (!this.config.enabled || this.status === 'disconnected') {
       return { success: false, reason: 'Sync not enabled' };
@@ -187,7 +237,6 @@ export class SyncService {
   async syncWithSupabase(localBooks) {
     const userId = this.config.syncUserId;
     
-    // Fetch all remote books for this sync user
     const { data: remoteRows, error } = await this.supabase
       .from('ddr_books')
       .select('id, data, updated_at')
@@ -206,7 +255,6 @@ export class SyncService {
     const localMap = new Map(localBooks.map(b => [b.id, b]));
     const uploads = [];
 
-    // Check local books to upload or merge
     for (const [id, localBook] of localMap.entries()) {
       const remoteBook = remoteMap.get(id);
       const localTime = localBook.updatedAt || localBook.lastReadAt || 0;
@@ -237,14 +285,12 @@ export class SyncService {
       }
     }
 
-    // Add any books that exist on remote but not locally
     for (const [id, remoteBook] of remoteMap.entries()) {
       if (!localMap.has(id)) {
         localMap.set(id, remoteBook);
       }
     }
 
-    // Batch upsert to Supabase
     if (uploads.length > 0) {
       const { error: upsertErr } = await this.supabase
         .from('ddr_books')
@@ -270,9 +316,6 @@ export class SyncService {
     return data.books || localBooks;
   }
 
-  /**
-   * Schedules a debounced background sync
-   */
   queueSync(localBooks) {
     if (!this.config.enabled) return;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);

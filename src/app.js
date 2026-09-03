@@ -1,5 +1,5 @@
 /**
- * ddrReader - Application Orchestrator with Cloud Database Sync
+ * ddrReader - Application Orchestrator with Instant Device Pairing
  */
 
 import { Navbar } from './components/Navbar.js';
@@ -14,7 +14,7 @@ import { audioService } from './services/audioService.js';
 
 export class App {
   constructor() {
-    this.currentView = 'library'; // 'library' | 'import' | 'reader'
+    this.currentView = 'library';
     this.activeBookId = null;
 
     // Toast utility
@@ -51,6 +51,7 @@ export class App {
     this.library = new Library({
       onOpenBook: (bookId) => this.openBook(bookId),
       onNavigateImport: () => this.switchView('import'),
+      onOpenSync: () => this.syncModal.open(),
       showToast: this.showToast
     });
 
@@ -89,6 +90,9 @@ export class App {
     const settings = storage.getSettings();
     audioService.setEnabled(settings.soundEnabled !== false);
 
+    // Check for Magic Device Pairing URL in hash (#sync=...)
+    this.checkMagicPairingHash();
+
     // Render static shells
     this.navbar.render(document.getElementById('nav-mount'));
     this.settingsModal.render(document.getElementById('modal-mount'));
@@ -108,11 +112,27 @@ export class App {
     window.addEventListener('hashchange', () => this.handleRouting());
   }
 
+  checkMagicPairingHash() {
+    const hash = window.location.hash;
+    if (hash.includes('sync=')) {
+      const match = hash.match(/sync=([^&]+)/);
+      if (match && match[1]) {
+        const res = syncService.importPairingPayload(match[1]);
+        if (res.success) {
+          // Clear hash for clean URL
+          history.replaceState(null, '', window.location.pathname);
+          setTimeout(() => {
+            this.showToast('📱 New device paired successfully! Synchronizing your virtual books...', 'success');
+          }, 300);
+        }
+      }
+    }
+  }
+
   handleRealtimePayload(payload) {
-    // If a book was updated or inserted on another device
     if (payload.new && payload.new.data) {
       const bookObj = typeof payload.new.data === 'string' ? JSON.parse(payload.new.data) : payload.new.data;
-      storage.saveBook(bookObj, false); // save without re-broadcasting
+      storage.saveBook(bookObj, false);
       
       if (this.currentView === 'library') {
         const libContainer = document.getElementById('view-library');
