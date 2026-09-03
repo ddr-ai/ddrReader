@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ddrReader - Virtual 3D Book & Web Article Reader</title>
+  <meta name="description" content="Transform any webpage, technical article, or documentation into a 3D animated virtual book with realistic page turns and persistent library." />
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+</head>
+<body>
+  <!-- Top Navigation -->
+  <header id="nav-mount"></header>
+
+  <!-- App Views -->
+  <main class="app-container">
+    <!-- Library View -->
+    <section class="tab-view active" id="view-library"></section>
+
+    <!-- URL Importer View -->
+    <section class="tab-view" id="view-import"></section>
+
+    <!-- 3D Book Reader View -->
+    <section class="tab-view" id="view-reader"></section>
+  </main>
+
+  <!-- Modals & Mounts -->
+  <div id="modal-mount"></div>
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,641 @@
+/**
+ * ddrReader - Virtual Book 3D Viewer & Page Flip Styling
+ */
+
+.book-viewer-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 65px);
+  width: 100%;
+  background: radial-gradient(ellipse at center, #1e293b 0%, #0b0f17 100%);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Reader Toolbar */
+.book-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1.25rem;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 20;
+  gap: 0.75rem;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.book-title-badge {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.25rem 0.75rem;
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+}
+
+.page-indicator-badge {
+  font-size: 0.825rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background-color: var(--bg-secondary);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* 3D Book Stage */
+.book-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  perspective: 2400px;
+  overflow: hidden;
+  padding: 1.5rem;
+}
+
+/* Book Frame & Wrapper */
+.virtual-book-wrapper {
+  position: relative;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  transition: transform 0.3s ease;
+}
+
+.virtual-book-wrapper::before {
+  /* Book drop shadow beneath pages */
+  content: '';
+  position: absolute;
+  bottom: -20px;
+  left: 5%;
+  right: 5%;
+  height: 25px;
+  background: rgba(0, 0, 0, 0.6);
+  filter: blur(15px);
+  border-radius: 50%;
+  z-index: -1;
+}
+
+/* Individual Pages in StPageFlip */
+.st-page {
+  background-color: #fdfbf7;
+  color: #2b2b2b;
+  box-sizing: border-box;
+  overflow: hidden;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.05);
+  cursor: grab;
+}
+
+.st-page:active {
+  cursor: grabbing;
+}
+
+/* Hard Covers */
+.st-page.--hard {
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Book Spines and Page Creases */
+.st-page.--left {
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: inset -15px 0 20px -10px rgba(0, 0, 0, 0.12);
+}
+
+.st-page.--right {
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: inset 15px 0 20px -10px rgba(0, 0, 0, 0.12);
+}
+
+/* Themes */
+.theme-sepia .st-page {
+  background-color: #fcf6e8;
+  color: #2e261f;
+}
+
+.theme-white .st-page {
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
+.theme-cream .st-page {
+  background-color: #f5eedb;
+  color: #3b3026;
+}
+
+.theme-dark .st-page {
+  background-color: #1e222b;
+  color: #e2e8f0;
+}
+
+.theme-cyberpunk .st-page {
+  background-color: #0b0f19;
+  color: #38bdf8;
+}
+
+/* Font Families */
+.font-serif .book-page-body { font-family: var(--font-serif); }
+.font-sans .book-page-body { font-family: var(--font-sans); }
+.font-mono .book-page-body { font-family: var(--font-mono); }
+.font-dyslexic .book-page-body { font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif; }
+
+/* Page Internal Layout */
+.book-page-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 2.25rem 2rem 1.75rem 2rem;
+  box-sizing: border-box;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  position: relative;
+}
+
+.book-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 0.4rem;
+  margin-bottom: 1.25rem;
+  user-select: none;
+}
+
+.header-book-title, .header-chapter-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+
+.book-page-body {
+  flex: 1;
+  overflow: hidden;
+  user-select: text;
+}
+
+.book-page-body p {
+  margin-bottom: 0.85rem;
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+}
+
+.book-page-body h1,
+.book-page-body h2,
+.book-page-body h3,
+.book-page-body h4 {
+  font-family: var(--font-sans);
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.book-page-body ul,
+.book-page-body ol {
+  margin-left: 1.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.book-page-body li {
+  margin-bottom: 0.35rem;
+}
+
+.book-page-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.85em;
+}
+
+.book-page-body th,
+.book-page-body td {
+  padding: 6px 10px;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  text-align: left;
+}
+
+.book-page-body th {
+  background-color: rgba(128, 128, 128, 0.1);
+  font-weight: 600;
+}
+
+.book-page-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 0.75rem auto;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Chapter Start Page Special Header */
+.chapter-start-header {
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.chapter-main-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.chapter-start-divider {
+  width: 48px;
+  height: 2px;
+  background-color: currentColor;
+  margin: 0.5rem auto 1rem auto;
+  opacity: 0.4;
+}
+
+/* Page Footer & Running Page Number */
+.book-page-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  opacity: 0.6;
+  padding-top: 0.5rem;
+  margin-top: auto;
+}
+
+/* Callouts & Important Notes */
+.book-callout {
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 6px;
+  border-left: 4px solid #38bdf8;
+  background-color: rgba(56, 189, 248, 0.08);
+  font-size: 0.88em;
+  line-height: 1.5;
+}
+
+.callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  margin-bottom: 0.35rem;
+  font-size: 0.9em;
+}
+
+.book-callout-note {
+  border-left-color: #38bdf8;
+  background-color: rgba(56, 189, 248, 0.08);
+}
+
+.book-callout-tip {
+  border-left-color: #10b981;
+  background-color: rgba(16, 185, 129, 0.08);
+}
+
+.book-callout-important {
+  border-left-color: #8b5cf6;
+  background-color: rgba(139, 92, 246, 0.08);
+}
+
+.book-callout-warning {
+  border-left-color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.08);
+}
+
+.book-callout-caution, .book-callout-danger {
+  border-left-color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.08);
+}
+
+/* Highlights */
+.book-highlight-text, mark {
+  background: linear-gradient(120deg, rgba(254, 240, 138, 0.6) 0%, rgba(253, 224, 71, 0.7) 100%);
+  color: inherit;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.theme-dark .book-highlight-text,
+.theme-dark mark {
+  background: linear-gradient(120deg, rgba(202, 138, 4, 0.4) 0%, rgba(234, 179, 8, 0.5) 100%);
+  color: #fef08a;
+}
+
+/* Cover Page */
+.book-cover-page {
+  height: 100%;
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.book-cover-border {
+  height: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 4px;
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.book-cover-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.book-cover-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.book-cover-divider {
+  width: 60px;
+  height: 3px;
+  margin-bottom: 1.25rem;
+}
+
+.book-cover-author {
+  font-size: 1.1rem;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.book-cover-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+/* Imprint / Title Page */
+.imprint-page {
+  justify-content: space-between;
+  text-align: center;
+}
+
+.imprint-ornament {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  opacity: 0.6;
+}
+
+.imprint-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.imprint-author {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+.imprint-divider {
+  width: 40px;
+  height: 1px;
+  background-color: currentColor;
+  margin: 1.5rem auto;
+  opacity: 0.3;
+}
+
+.imprint-details {
+  font-size: 0.85rem;
+  line-height: 1.8;
+  opacity: 0.75;
+  text-align: left;
+  max-width: 85%;
+  margin: 0 auto;
+}
+
+/* Table of Contents Page */
+.toc-page {
+  padding-top: 2rem;
+}
+
+.toc-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.toc-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.toc-divider {
+  width: 50px;
+  height: 2px;
+  background-color: currentColor;
+  margin: 0.5rem auto;
+  opacity: 0.4;
+}
+
+.toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.toc-item {
+  display: flex;
+  align-items: baseline;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.toc-item:hover {
+  background-color: rgba(56, 189, 248, 0.15);
+  color: #0284c7;
+}
+
+.toc-num {
+  font-weight: 700;
+  margin-right: 0.5rem;
+  min-width: 20px;
+}
+
+.toc-text {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 65%;
+}
+
+.toc-dots {
+  flex: 1;
+  border-bottom: 1px dotted currentColor;
+  opacity: 0.35;
+  margin: 0 0.5rem;
+  min-width: 20px;
+}
+
+.toc-page-num {
+  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+/* Interactive Flip Controls */
+.flip-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
+  transition: all 0.2s ease;
+}
+
+.flip-nav-btn:hover {
+  background-color: var(--accent);
+  color: #0f172a;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.flip-prev-btn { left: 20px; }
+.flip-next-btn { right: 20px; }
+
+/* Bottom Reader Bar */
+.book-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1.5rem;
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border-color);
+  z-index: 20;
+  gap: 1.5rem;
+}
+
+.slider-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 500px;
+}
+
+.book-slider {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+  outline: none;
+}
+
+.book-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+}
+
+/* Side Drawers (TOC & Search & Bookmarks) */
+.reader-drawer {
+  position: absolute;
+  top: 50px;
+  bottom: 50px;
+  left: -360px;
+  width: 340px;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+  transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.reader-drawer.open {
+  left: 0;
+}
+
+.drawer-header {
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.drawer-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* Bookmark Ribbon Badge on Book Cards & Reader */
+.bookmark-ribbon {
+  position: absolute;
+  top: 0;
+  right: 20px;
+  width: 24px;
+  height: 38px;
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  transition: transform 0.2s ease;
+}
+
+.bookmark-ribbon.gold {
+  background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+}

@@ -1,0 +1,39 @@
+{
+  "name": "ddr-reader",
+  "version": "1.0.0",
+  "description": "ddrReader - Transform any web page or documentation into a 3D animated virtual book with realistic page turns, TOC navigation, and persistent library.",
+  "main": "desktop/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "desktop": "node desktop/server.js",
+    "start": "node desktop/server.js",
+    "deploy": "vite build && gh-pages -d dist"
+  },
+  "keywords": [
+    "virtual-book",
+    "reader",
+    "page-flip",
+    "article-reader",
+    "readability",
+    "book-animation",
+    "ebook"
+  ],
+  "author": "ddr",
+  "license": "MIT",
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "cors": "^2.8.6",
+    "dompurify": "^3.4.14",
+    "express": "^5.2.1",
+    "lucide": "^1.39.0",
+    "page-flip": "^2.0.7",
+    "prismjs": "^1.30.0"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0",
+    "vite": "^8.2.2"
+  }
+}
