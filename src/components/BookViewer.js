@@ -1,6 +1,6 @@
 /**
  * ddrReader - 3D Virtual Book Viewer Component
- * Integrates PageFlip (StPageFlip) physics, sound, bookmarks, search, and TTS.
+ * Fully responsive across all devices, mobile phones, tablets, laptops, and wide screens.
  */
 
 import { PageFlip } from 'page-flip';
@@ -19,7 +19,8 @@ export class BookViewer {
     this.isTtsPlaying = false;
     this.speechUtterance = null;
     this.keyHandler = null;
-    this.resizeHandler = null;
+    this.resizeTimeout = null;
+    this.containerRef = null;
   }
 
   loadBook(bookId) {
@@ -35,6 +36,7 @@ export class BookViewer {
 
   render(container) {
     if (!this.currentBook) return;
+    this.containerRef = container;
 
     const book = this.currentBook;
     const settings = storage.getSettings();
@@ -46,7 +48,7 @@ export class BookViewer {
         <!-- Top Toolbar -->
         <div class="book-toolbar">
           <div class="toolbar-group">
-            <button class="nav-tab-btn" id="btn-viewer-library" style="background: var(--bg-secondary); color: var(--text-primary); padding: 0.4rem 0.85rem;">
+            <button class="nav-tab-btn" id="btn-viewer-library" style="background: var(--bg-secondary); color: var(--text-primary); padding: 0.35rem 0.75rem;">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
@@ -59,7 +61,7 @@ export class BookViewer {
 
           <div class="toolbar-group">
             <button class="icon-btn" id="btn-toggle-toc" title="Table of Contents (T)">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="8" y1="6" x2="21" y2="6"></line>
                 <line x1="8" y1="12" x2="21" y2="12"></line>
                 <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -69,18 +71,18 @@ export class BookViewer {
               </svg>
             </button>
             <button class="icon-btn" id="btn-toggle-search" title="Search in Book (S)">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
             </button>
             <button class="icon-btn" id="btn-toggle-bookmarks" title="Bookmarks & Notes (B)">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
               </svg>
             </button>
             <button class="icon-btn" id="btn-toggle-tts" title="Read Aloud (TTS)">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
               </svg>
@@ -91,7 +93,7 @@ export class BookViewer {
         <!-- 3D Book Stage -->
         <div class="book-stage" id="book-stage">
           <button class="flip-nav-btn flip-prev-btn" id="flip-prev" title="Previous Page (←)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
           </button>
@@ -107,7 +109,7 @@ export class BookViewer {
           </div>
 
           <button class="flip-nav-btn flip-next-btn" id="flip-next" title="Next Page (→ / Space)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </button>
@@ -135,9 +137,9 @@ export class BookViewer {
             />
           </div>
 
-          <div style="display: flex; gap: 0.5rem;">
+          <div>
             <button class="primary-btn" id="btn-quick-bookmark" style="padding: 4px 12px; font-size: 0.8rem;">
-              <span>🔖 Bookmark Page</span>
+              <span>Bookmark</span>
             </button>
           </div>
         </div>
@@ -195,44 +197,53 @@ export class BookViewer {
     const flipElement = container.querySelector('#flipbook');
     if (!flipElement) return;
 
-    // Determine dimensions based on viewport
     const stage = container.querySelector('#book-stage');
-    const stageWidth = stage.clientWidth || 900;
-    const stageHeight = stage.clientHeight || 650;
+    const stageWidth = stage.clientWidth || window.innerWidth;
+    const stageHeight = stage.clientHeight || (window.innerHeight - 120);
 
-    let pageWidth = Math.min(480, Math.floor((stageWidth - 80) / 2));
-    let pageHeight = Math.min(680, stageHeight - 40);
+    const isMobile = stageWidth < 768;
 
-    if (stageWidth < 768) {
-      // Single page mobile view
-      pageWidth = Math.min(stageWidth - 40, 480);
+    let pageWidth = 0;
+    let pageHeight = 0;
+
+    if (isMobile) {
+      // Single-page mobile layout
+      pageWidth = Math.min(stageWidth - 24, 460);
+      pageHeight = Math.min(stageHeight - 16, 680);
+    } else {
+      // Dual-page desktop spread layout
+      pageWidth = Math.min(480, Math.floor((stageWidth - 60) / 2));
+      pageHeight = Math.min(680, stageHeight - 30);
     }
 
     try {
+      if (this.pageFlip) {
+        try { this.pageFlip.destroy(); } catch (e) {}
+      }
+
       this.pageFlip = new PageFlip(flipElement, {
-        width: pageWidth,
-        height: pageHeight,
+        width: Math.max(300, pageWidth),
+        height: Math.max(420, pageHeight),
         size: 'fixed',
-        minWidth: 320,
-        maxWidth: 550,
-        minHeight: 460,
-        maxHeight: 750,
-        maxShadowOpacity: 0.6,
+        minWidth: 280,
+        maxWidth: 560,
+        minHeight: 400,
+        maxHeight: 760,
+        maxShadowOpacity: 0.5,
         showCover: true,
+        usePortrait: isMobile,
         mobileScrollSupport: false,
         useMouseEvents: true,
-        flippingTime: 700,
+        flippingTime: 650,
         drawShadow: true
       });
 
       this.pageFlip.loadFromHTML(flipElement.querySelectorAll('.st-page'));
 
-      // Listen for page turns
       this.pageFlip.on('flip', (e) => {
         this.onPageTurn(e.data);
       });
 
-      // Apply initial page jump if bookmarked
       if (initialPage > 0) {
         setTimeout(() => {
           try {
@@ -243,10 +254,8 @@ export class BookViewer {
         }, 150);
       }
 
-      // Syntax highlight code blocks in pages
       highlightCodeInElement(flipElement);
 
-      // TOC internal link clicks inside the book
       flipElement.querySelectorAll('.toc-item').forEach(item => {
         item.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -266,13 +275,9 @@ export class BookViewer {
     this.currentPage = pageNum;
     const totalPages = this.currentBook.pages.length;
 
-    // Play realistic audio sound
     audioService.playPageFlip();
-
-    // Persist bookmark position
     storage.updateBookmark(this.currentBook.id, pageNum);
 
-    // Update UI Indicators
     const curLabel = document.querySelector('#bar-current-page');
     const progLabel = document.querySelector('#bar-progress-percent');
     const slider = document.querySelector('#book-page-slider');
@@ -281,14 +286,12 @@ export class BookViewer {
     if (progLabel) progLabel.innerText = `${Math.round(((pageNum + 1) / totalPages) * 100)}%`;
     if (slider) slider.value = pageNum;
 
-    // If TTS is playing, read the new page
     if (this.isTtsPlaying) {
       this.readCurrentPageTts();
     }
   }
 
   bindEvents(container) {
-    // Back to library
     const libBtn = container.querySelector('#btn-viewer-library');
     if (libBtn) {
       libBtn.addEventListener('click', () => {
@@ -297,14 +300,12 @@ export class BookViewer {
       });
     }
 
-    // Prev / Next Page Buttons
     const prevBtn = container.querySelector('#flip-prev');
     const nextBtn = container.querySelector('#flip-next');
 
     if (prevBtn) prevBtn.addEventListener('click', () => this.pageFlip && this.pageFlip.flipPrev());
     if (nextBtn) nextBtn.addEventListener('click', () => this.pageFlip && this.pageFlip.flipNext());
 
-    // Page slider
     const slider = container.querySelector('#book-page-slider');
     if (slider) {
       slider.addEventListener('change', (e) => {
@@ -315,7 +316,6 @@ export class BookViewer {
       });
     }
 
-    // Quick Bookmark button
     const bookmarkBtn = container.querySelector('#btn-quick-bookmark');
     if (bookmarkBtn) {
       bookmarkBtn.addEventListener('click', () => {
@@ -326,7 +326,6 @@ export class BookViewer {
       });
     }
 
-    // Drawers
     const tocBtn = container.querySelector('#btn-toggle-toc');
     const searchBtn = container.querySelector('#btn-toggle-search');
     const bmBtn = container.querySelector('#btn-toggle-bookmarks');
@@ -345,12 +344,10 @@ export class BookViewer {
       ttsBtn.addEventListener('click', () => this.toggleTts());
     }
 
-    // Close drawers
     container.querySelectorAll('[data-close-drawer]').forEach(btn => {
       btn.addEventListener('click', () => this.closeDrawers());
     });
 
-    // TOC Jump links in Drawer
     container.querySelectorAll('#drawer-toc .toc-item').forEach(item => {
       item.addEventListener('click', () => {
         const page = parseInt(item.getAttribute('data-jump-page'), 10) - 1;
@@ -361,7 +358,6 @@ export class BookViewer {
       });
     });
 
-    // Search in Book input
     const searchInput = container.querySelector('#search-book-input');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => this.handleBookSearch(e.target.value));
@@ -391,6 +387,21 @@ export class BookViewer {
       }
     };
     window.addEventListener('keydown', this.keyHandler);
+
+    // Responsive Window Resize with Debounce
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+    }
+    this.resizeHandler = () => {
+      if (this.resizeTimeout) clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = setTimeout(() => {
+        if (this.containerRef && this.currentBook) {
+          const currentPage = this.currentPage;
+          this.initFlipBook(this.containerRef, currentPage);
+        }
+      }, 300);
+    };
+    window.addEventListener('resize', this.resizeHandler);
   }
 
   detachKeyboardEvents() {
@@ -434,7 +445,7 @@ export class BookViewer {
       list.innerHTML = `
         <div style="text-align: center; color: var(--text-muted); padding: 2rem 1rem;">
           <p>No bookmarks saved yet.</p>
-          <p style="font-size: 0.8rem; margin-top: 0.5rem;">Click "Bookmark Page" to save key sections.</p>
+          <p style="font-size: 0.8rem; margin-top: 0.5rem;">Click "Bookmark" to save key sections.</p>
         </div>
       `;
       return;
@@ -524,7 +535,6 @@ export class BookViewer {
     });
   }
 
-  // --- Text-to-Speech ---
   toggleTts() {
     if (this.isTtsPlaying) {
       this.stopTts();
@@ -560,7 +570,6 @@ export class BookViewer {
 
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = page.html;
-    // Remove headers/footers for speech
     tempDiv.querySelectorAll('.book-page-header, .book-page-footer, .code-copy-btn').forEach(el => el.remove());
     const text = tempDiv.innerText.trim();
 
@@ -584,6 +593,10 @@ export class BookViewer {
   destroy() {
     this.stopTts();
     this.detachKeyboardEvents();
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
     if (this.pageFlip) {
       try {
         this.pageFlip.destroy();

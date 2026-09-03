@@ -1,11 +1,11 @@
 /**
- * ddrReader - Library & Bookshelf Styling
+ * ddrReader - Library & Bookshelf Responsive Styling
  */
 
 .library-container {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 4rem 1.5rem;
+  padding: 1.5rem 1rem 3rem 1rem;
   width: 100%;
 }
 
@@ -13,22 +13,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .hero-text h1 {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text-primary);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
 }
 
 .hero-text p {
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 /* Controls Bar */
@@ -36,11 +36,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2rem;
-  gap: 1rem;
+  margin-bottom: 1.5rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
   background-color: var(--bg-secondary);
-  padding: 0.75rem 1.25rem;
+  padding: 0.65rem 1rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
 }
@@ -51,10 +51,10 @@
   gap: 0.5rem;
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 0.85rem;
   border-radius: var(--radius-md);
   flex: 1;
-  min-width: 240px;
+  min-width: 200px;
   max-width: 400px;
 }
 
@@ -63,7 +63,7 @@
   border: none;
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   width: 100%;
   outline: none;
 }
@@ -72,16 +72,21 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 2px;
 }
 
 .filter-chip {
-  padding: 0.4rem 0.85rem;
+  padding: 0.35rem 0.75rem;
   border-radius: var(--radius-full);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--text-secondary);
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filter-chip.active {
@@ -94,8 +99,8 @@
 /* Books Grid */
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.5rem;
   perspective: 1000px;
 }
 
@@ -114,52 +119,51 @@
 }
 
 .book-card:hover {
-  transform: translateY(-6px) scale(1.01);
+  transform: translateY(-5px);
   border-color: var(--accent);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.2);
 }
 
 /* 3D Book Cover in Card */
 .book-card-cover {
-  height: 220px;
+  height: 200px;
   position: relative;
-  padding: 1.5rem;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
 }
 
-/* 3D Spine highlight */
 .book-card-cover::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 14px;
+  width: 12px;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.25) 100%);
   border-right: 1px solid rgba(0, 0, 0, 0.3);
   z-index: 2;
 }
 
 .book-card-domain {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: var(--radius-sm);
   align-self: flex-start;
   z-index: 2;
 }
 
 .book-card-title {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 800;
   line-height: 1.3;
   margin-top: auto;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
   z-index: 2;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -168,7 +172,7 @@
 }
 
 .book-card-author {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   opacity: 0.85;
   font-style: italic;
   z-index: 2;
@@ -179,10 +183,10 @@
 
 /* Book Details in Card */
 .book-card-body {
-  padding: 1.25rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
   flex: 1;
 }
 
@@ -190,7 +194,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 
@@ -198,14 +202,14 @@
 .progress-bar-container {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .progress-bar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
 }
 
@@ -227,14 +231,14 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--gold);
   background-color: rgba(245, 158, 11, 0.12);
-  padding: 4px 8px;
+  padding: 3px 6px;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(245, 158, 11, 0.25);
-  margin-top: 0.25rem;
+  margin-top: 0.15rem;
 }
 
 .book-card-actions {
@@ -242,12 +246,12 @@
   align-items: center;
   justify-content: space-between;
   border-top: 1px solid var(--border-color);
-  padding-top: 0.75rem;
+  padding-top: 0.65rem;
   margin-top: auto;
 }
 
 .card-action-btn {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
@@ -266,23 +270,71 @@
 .empty-library-card {
   grid-column: 1 / -1;
   text-align: center;
-  padding: 4rem 2rem;
+  padding: 3.5rem 1.5rem;
   background-color: var(--bg-secondary);
   border: 2px dashed var(--border-color);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .empty-icon {
-  width: 64px;
-  height: 64px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background-color: rgba(56, 189, 248, 0.15);
   color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Responsive Media Queries */
+@media (max-width: 640px) {
+  .library-container {
+    padding: 1rem 0.75rem 2.5rem 0.75rem;
+  }
+
+  .library-hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .hero-text h1 {
+    font-size: 1.5rem;
+  }
+
+  .library-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .search-box {
+    max-width: 100%;
+    min-width: 100%;
+  }
+
+  .books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.85rem;
+  }
+
+  .book-card-cover {
+    height: 160px;
+    padding: 0.85rem;
+  }
+
+  .book-card-title {
+    font-size: 0.95rem;
+    -webkit-line-clamp: 2;
+  }
+
+  .book-card-body {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
 }
