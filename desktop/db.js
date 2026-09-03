@@ -1,6 +1,5 @@
 /**
  * ddrReader - Desktop SQLite Database
- * Stores virtual books persistently on disk using Node.js built-in sqlite.
  */
 
 import fs from 'fs';
@@ -12,6 +11,12 @@ const __dirname = path.dirname(__filename);
 const DB_FILE = path.join(__dirname, '..', 'ddr_reader.sqlite');
 
 let db = null;
+
+function isSampleBook(b) {
+  if (!b || !b.title) return false;
+  const title = b.title.toLowerCase();
+  return title.includes('anatomy of autonomous') || title.includes('high-performance web architecture');
+}
 
 export async function initDatabase() {
   try {
@@ -30,6 +35,11 @@ export async function initDatabase() {
       );
       CREATE INDEX IF NOT EXISTS idx_sync_user ON books(sync_user_id);
     `);
+    // Delete any old sample books from SQLite
+    try {
+      db.exec(`DELETE FROM books WHERE title LIKE '%Anatomy of Autonomous%' OR title LIKE '%High-Performance Web%';`);
+    } catch (e) {}
+
     console.log(`  • SQLite Database active at: ${DB_FILE}`);
   } catch (err) {
     console.warn(`  • Using JSON File Storage fallback (SQLite error: ${err.message})`);
@@ -37,7 +47,6 @@ export async function initDatabase() {
   }
 }
 
-// Fallback if node:sqlite is not accessible
 const FALLBACK_FILE = path.join(__dirname, '..', 'ddr_reader_db.json');
 function initJsonFallback() {
   if (!fs.existsSync(FALLBACK_FILE)) {
@@ -49,7 +58,7 @@ function getJsonFallbackBooks() {
   try {
     if (!fs.existsSync(FALLBACK_FILE)) return [];
     const data = JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf-8'));
-    return data.books || [];
+    return (data.books || []).filter(b => !isSampleBook(b));
   } catch {
     return [];
   }
@@ -57,7 +66,8 @@ function getJsonFallbackBooks() {
 
 function saveJsonFallbackBooks(books) {
   try {
-    fs.writeFileSync(FALLBACK_FILE, JSON.stringify({ books }, null, 2));
+    const clean = books.filter(b => !isSampleBook(b));
+    fs.writeFileSync(FALLBACK_FILE, JSON.stringify({ books: clean }, null, 2));
   } catch (e) {
     console.error('JSON fallback save error:', e);
   }
@@ -67,10 +77,10 @@ export function getAllBooks(userId = 'default_user') {
   if (db) {
     const stmt = db.prepare('SELECT id, data, updated_at FROM books WHERE sync_user_id = ? ORDER BY updated_at DESC');
     const rows = stmt.all(userId);
-    return rows.map(r => JSON.parse(r.data));
+    return rows.map(r => JSON.parse(r.data)).filter(b => !isSampleBook(b));
   } else {
     const books = getJsonFallbackBooks();
-    return books.filter(b => !b.sync_user_id || b.sync_user_id === userId);
+    return books.filter(b => (!b.sync_user_id || b.sync_user_id === userId) && !isSampleBook(b));
   }
 }
 
@@ -78,14 +88,18 @@ export function getBookById(id, userId = 'default_user') {
   if (db) {
     const stmt = db.prepare('SELECT data FROM books WHERE id = ? AND sync_user_id = ?');
     const row = stmt.get(id, userId);
-    return row ? JSON.parse(row.data) : null;
+    if (!row) return null;
+    const b = JSON.parse(row.data);
+    return isSampleBook(b) ? null : b;
   } else {
     const books = getJsonFallbackBooks();
-    return books.find(b => b.id === id) || null;
+    return books.find(b => b.id === id && !isSampleBook(b)) || null;
   }
 }
 
 export function upsertBook(book, userId = 'default_user') {
+  if (isSampleBook(book)) return null;
+
   const now = Date.now();
   const bookToSave = { ...book, updatedAt: book.updatedAt || now };
   const jsonStr = JSON.stringify(bookToSave);
@@ -127,11 +141,11 @@ export function deleteBookById(id, userId = 'default_user') {
 }
 
 export function syncBatch(clientBooks, userId = 'default_user') {
+  const cleanClient = (clientBooks || []).filter(b => !isSampleBook(b));
   const serverBooks = getAllBooks(userId);
   const serverMap = new Map(serverBooks.map(b => [b.id, b]));
-  const updatedClientBooks = [];
 
-  for (const clientBook of clientBooks) {
+  for (const clientBook of cleanClient) {
     const serverBook = serverMap.get(clientBook.id);
     if (!serverBook) {
       upsertBook(clientBook, userId);
@@ -146,5 +160,5 @@ export function syncBatch(clientBooks, userId = 'default_user') {
     }
   }
 
-  return Array.from(serverMap.values());
+  return Array.from(serverMap.values()).filter(b => !isSampleBook(b));
 }

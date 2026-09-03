@@ -1,7 +1,6 @@
 /**
  * ddrReader - Universal Cloud Database & Cross-Device Sync Service
  * Seamlessly syncs virtual books, chapters, bookmarks, and reading positions across devices.
- * Supports Supabase (PostgreSQL Cloud), Desktop Server API, Instant QR Device Pairing, and Auto-connect.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -9,11 +8,17 @@ import { DEFAULT_CONFIG } from '../config.js';
 
 const SYNC_CONFIG_KEY = 'ddr_reader_sync_config';
 
+function isSampleBook(b) {
+  if (!b || !b.title) return false;
+  const title = b.title.toLowerCase();
+  return title.includes('anatomy of autonomous') || title.includes('high-performance web architecture');
+}
+
 export class SyncService {
   constructor() {
     this.config = this.loadConfig();
     this.supabase = null;
-    this.status = 'disconnected'; // 'disconnected' | 'connecting' | 'connected' | 'syncing' | 'error'
+    this.status = 'disconnected';
     this.lastSyncTime = null;
     this.listeners = new Set();
     this.debounceTimer = null;
@@ -29,7 +34,6 @@ export class SyncService {
       const data = localStorage.getItem(SYNC_CONFIG_KEY);
       if (data) return JSON.parse(data);
       
-      // Fallback to default config if enabled
       if (DEFAULT_CONFIG && DEFAULT_CONFIG.autoConnectSupabase && DEFAULT_CONFIG.supabaseUrl) {
         return {
           enabled: true,
@@ -64,9 +68,6 @@ export class SyncService {
     this.notifyListeners();
   }
 
-  /**
-   * Generates a 1-click pairing URL for scanning or sending to a new device.
-   */
   generatePairingUrl() {
     if (!this.config.enabled) return null;
     const payload = {
@@ -81,9 +82,6 @@ export class SyncService {
     return `${baseUrl}#sync=${encoded}`;
   }
 
-  /**
-   * Parses and activates pairing configuration from a pairing URL payload.
-   */
   importPairingPayload(encodedStr) {
     try {
       const decoded = decodeURIComponent(escape(atob(encodedStr)));
@@ -162,6 +160,11 @@ export class SyncService {
         } else {
           this.status = 'connected';
           this.setupSupabaseRealtime();
+          // Purge sample books from Supabase if present
+          try {
+            await this.supabase.from('ddr_books').delete().ilike('title', '%Anatomy of Autonomous%');
+            await this.supabase.from('ddr_books').delete().ilike('title', '%High-Performance Web%');
+          } catch (e) {}
         }
       } else if (this.config.provider === 'server') {
         const res = await fetch(`${this.config.serverUrl}/health`, { signal: AbortSignal.timeout(3000) });
@@ -214,18 +217,19 @@ export class SyncService {
     this.notifyListeners();
 
     try {
-      let mergedBooks = localBooks;
+      const cleanLocalBooks = localBooks.filter(b => !isSampleBook(b));
+      let mergedBooks = cleanLocalBooks;
 
       if (this.config.provider === 'supabase' && this.supabase) {
-        mergedBooks = await this.syncWithSupabase(localBooks);
+        mergedBooks = await this.syncWithSupabase(cleanLocalBooks);
       } else if (this.config.provider === 'server') {
-        mergedBooks = await this.syncWithServer(localBooks);
+        mergedBooks = await this.syncWithServer(cleanLocalBooks);
       }
 
       this.lastSyncTime = Date.now();
       this.status = 'connected';
       this.notifyListeners();
-      return { success: true, books: mergedBooks };
+      return { success: true, books: mergedBooks.filter(b => !isSampleBook(b)) };
     } catch (err) {
       console.error('Sync failed:', err);
       this.status = 'error';
@@ -248,11 +252,13 @@ export class SyncService {
     (remoteRows || []).forEach(row => {
       try {
         const bookObj = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
-        remoteMap.set(row.id, { ...bookObj, updatedAt: row.updated_at });
+        if (!isSampleBook(bookObj)) {
+          remoteMap.set(row.id, { ...bookObj, updatedAt: row.updated_at });
+        }
       } catch (e) {}
     });
 
-    const localMap = new Map(localBooks.map(b => [b.id, b]));
+    const localMap = new Map(localBooks.filter(b => !isSampleBook(b)).map(b => [b.id, b]));
     const uploads = [];
 
     for (const [id, localBook] of localMap.entries()) {

@@ -11,14 +11,20 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_SETTINGS = {
-  theme: 'sepia', // 'sepia' | 'white' | 'dark' | 'cream' | 'cyberpunk'
-  fontFamily: 'serif', // 'serif' | 'sans' | 'dyslexic' | 'mono'
-  fontSize: 16, // px
+  theme: 'sepia',
+  fontFamily: 'serif',
+  fontSize: 16,
   lineHeight: 1.6,
   soundEnabled: true,
   pageViewMode: 'auto',
   readingSpeed: 1.0
 };
+
+function isSampleBook(b) {
+  if (!b || !b.title) return false;
+  const title = b.title.toLowerCase();
+  return title.includes('anatomy of autonomous') || title.includes('high-performance web architecture');
+}
 
 export const storage = {
   // --- Books ---
@@ -26,8 +32,16 @@ export const storage = {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.BOOKS);
       if (!data) return [];
-      const books = JSON.parse(data);
-      return Array.isArray(books) ? books.sort((a, b) => (b.lastReadAt || b.createdAt) - (a.lastReadAt || a.createdAt)) : [];
+      let books = JSON.parse(data);
+      if (!Array.isArray(books)) return [];
+
+      // Permanently filter out the removed sample books
+      const filtered = books.filter(b => !isSampleBook(b));
+      if (filtered.length !== books.length) {
+        localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(filtered));
+      }
+
+      return filtered.sort((a, b) => (b.lastReadAt || b.createdAt) - (a.lastReadAt || a.createdAt));
     } catch (e) {
       console.error('Error loading books from storage:', e);
       return [];
@@ -40,6 +54,8 @@ export const storage = {
   },
 
   saveBook(book, triggerSync = true) {
+    if (isSampleBook(book)) return null;
+
     try {
       const books = this.getBooks();
       const now = Date.now();
@@ -168,8 +184,9 @@ export const storage = {
     const localBooks = this.getBooks();
     const res = await syncService.sync(localBooks);
     if (res.success && Array.isArray(res.books)) {
-      localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(res.books));
-      return res.books;
+      const filtered = res.books.filter(b => !isSampleBook(b));
+      localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(filtered));
+      return filtered;
     }
     return localBooks;
   },
@@ -233,7 +250,7 @@ export const storage = {
       
       let importedCount = 0;
       for (const book of data.books) {
-        if (!existingIds.has(book.id)) {
+        if (!existingIds.has(book.id) && !isSampleBook(book)) {
           existingBooks.push(book);
           importedCount++;
         }
